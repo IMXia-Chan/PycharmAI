@@ -1,18 +1,22 @@
 package com.assistant
 
-import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 
-/** 把当前选中的代码保存到「代码片段库」的通用逻辑(工具窗口与菜单共用)。 */
+/** 把当前选中的代码保存到本地「文件库」(kind=snippet),之后可和错误记录一起上传网页。 */
 object SnippetSaver {
     fun saveCurrent(project: Project) {
         val editor = FileEditorManager.getInstance(project).selectedTextEditor
-        val code = if (editor != null) EditorOps.currentCode(editor) else ""
+        if (editor == null) {
+            Messages.showWarningDialog(project, "请先在编辑器里选中要保存的代码。", "保存代码片段")
+            return
+        }
+        val doc = editor.document
+        val sel = editor.selectionModel
+        val hasSelection = sel.hasSelection()
+        val code = if (hasSelection) sel.selectedText ?: "" else doc.text
         if (code.isBlank()) {
             Messages.showWarningDialog(project, "请先在编辑器里选中要保存的代码。", "保存代码片段")
             return
@@ -20,21 +24,10 @@ object SnippetSaver {
         val title = Messages.showInputDialog(
             project, "给这个片段起个名字(方便以后找):", "保存代码片段", null
         ) ?: return
+        val line = doc.getLineNumber(if (hasSelection) sel.selectionStart else editor.caretModel.offset) + 1
+        val filename = FileDocumentManager.getInstance().getFile(doc)?.name ?: "untitled.py"
 
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "保存片段…", false) {
-            override fun run(indicator: ProgressIndicator) {
-                try {
-                    BackendClient.addSnippet(title, code, "")
-                } catch (ex: Exception) {
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showErrorDialog(project, ex.message ?: "保存失败", "错误")
-                    }
-                    return
-                }
-                ApplicationManager.getApplication().invokeLater {
-                    Messages.showInfoMessage(project, "已保存代码片段「${title.ifBlank { "(无标题)" }}」。", "保存代码片段")
-                }
-            }
-        })
+        LocalLibraryStore.addRecord("snippet", title, code, "", filename, line, "snippet", "info")
+        Messages.showInfoMessage(project, "已把代码片段「${title.ifBlank { "(无标题)" }}」保存到文件库。", "保存代码片段")
     }
 }

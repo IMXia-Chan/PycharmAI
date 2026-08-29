@@ -190,15 +190,6 @@ object BackendClient {
         }
     }
 
-    fun snippets(): List<Snippet> {
-        val el = JsonParser.parseString(get("/api/snippets"))
-        if (!el.isJsonArray) return emptyList()
-        return el.asJsonArray.map {
-            val o = it.asJsonObject
-            Snippet(o.str("id"), o.str("title"), o.str("code"), o.str("note"), o.str("created_at"))
-        }
-    }
-
     fun addSnippet(title: String, code: String, note: String): Snippet {
         val payload = JsonObject()
         payload.addProperty("title", title)
@@ -206,10 +197,6 @@ object BackendClient {
         payload.addProperty("note", note)
         val o = JsonParser.parseString(post("/api/snippets", payload)).asJsonObject
         return Snippet(o.str("id"), o.str("title"), o.str("code"), o.str("note"), o.str("created_at"))
-    }
-
-    fun deleteSnippet(id: String) {
-        delete("/api/snippets/$id")
     }
 
     fun records(): List<Record> {

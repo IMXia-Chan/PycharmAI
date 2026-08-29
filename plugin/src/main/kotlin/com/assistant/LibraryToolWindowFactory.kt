@@ -86,6 +86,11 @@ private class LibraryPanel(private val myProject: Project) : SimpleToolWindowPan
         }
 
     private fun formatRecord(r: LocalRecord): String {
+        if (r.kind == "snippet") {
+            val t = r.title.ifBlank { "(无标题)" }
+            val short = if (t.length > 30) t.take(30) + "…" else t
+            return "📌 [片段] $short"
+        }
         val kind = when (r.kind) {
             "explain" -> "代码解释"
             "error-explain" -> "报错解释"
@@ -173,11 +178,17 @@ private class LibraryPanel(private val myProject: Project) : SimpleToolWindowPan
         }
         ProgressManager.getInstance().run(object : Task.Backgroundable(myProject, "上传记录…", false) {
             override fun run(indicator: ProgressIndicator) {
-                val records = candidates.map {
-                    Record(it.category, it.title, it.message, it.filename, it.line, it.code, it.severity)
-                }
+                val snippets = candidates.filter { it.kind == "snippet" }
+                val records = candidates.filter { it.kind != "snippet" }
                 try {
-                    BackendClient.uploadRecords(records)
+                    snippets.forEach { BackendClient.addSnippet(it.title, it.code, it.message) }
+                    if (records.isNotEmpty()) {
+                        BackendClient.uploadRecords(
+                            records.map {
+                                Record(it.category, it.title, it.message, it.filename, it.line, it.code, it.severity)
+                            }
+                        )
+                    }
                 } catch (ex: Exception) {
                     ApplicationManager.getApplication().invokeLater {
                         Messages.showErrorDialog(myProject, ex.message ?: "上传失败,请确认后端已启动", "错误")

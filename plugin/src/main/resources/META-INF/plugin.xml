@@ -9,7 +9,7 @@
         <ul>
         <li>输入时检测常见错误/不规范写法,并在代码旁内联提示</li>
         <li>「网页端 AI 深度搜索」一个入口搞定:AI 问答、中文搜函数、学习笔记、函数对比、导出 PDF</li>
-        <li>解释代码、报错解释、记录错误代码都存入本地文件库(按文件分组),勾选后一键上传网页生成笔记</li>
+        <li>解释代码、报错解释、记录错误代码、保存代码片段都存入本地文件库,勾选后一键上传网页生成笔记</li>
         </ul>
         首次使用会弹出「请接入你需要调用的 api」,填你自己的 DeepSeek API key(只存本机,绝不写进代码)。
         网页端也需要在右上角填你自己的 key(只存浏览器本机)。
@@ -22,8 +22,6 @@
     <extensions defaultExtensionNs="com.intellij">
         <applicationService serviceImplementation="com.assistant.AssistantSettings"/>
         <editorFactoryListener implementation="com.assistant.EditorListener"/>
-        <toolWindow id="代码片段" anchor="right" icon="/icons/snippet.svg"
-                    factoryClass="com.assistant.SnippetToolWindowFactory"/>
         <toolWindow id="文件库" anchor="right" icon="/icons/library.svg"
                     factoryClass="com.assistant.LibraryToolWindowFactory"/>
         <postStartupActivity implementation="com.assistant.ApiKeyStartupActivity"/>
@@ -77,16 +75,10 @@
         </action>
         <action id="Assistant.SaveSnippet" class="com.assistant.SaveSnippetAction"
                 text="保存代码片段…"
-                description="把选中的代码保存到代码片段库">
+                description="把选中的代码保存到文件库(片段)">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt K"/>
-        </action>
-        <action id="Assistant.OpenSnippet" class="com.assistant.OpenSnippetAction"
-                text="打开代码片段库"
-                description="打开/激活右侧的代码片段窗口">
-            <add-to-group group-id="ToolsMenu" anchor="last"/>
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt W"/>
         </action>
     </actions>
 </idea-plugin>
