@@ -107,6 +107,23 @@ def _parse_json(text: str, fallback: dict) -> dict:
         return fallback
 
 
+def _clean_code(text: str) -> str:
+    """去掉 AI 返回代码时可能多包的一层 ``` 代码块围栏,并剥掉语言标记行。"""
+    text = (text or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        # 去掉首行 ``` 或 ```python 之类的围栏头
+        if lines and lines[0].strip().startswith("```"):
+            lines = lines[1:]
+        # 找到真正的围栏尾(单独一行 ```),截断它之后的任何说明文字
+        for i, ln in enumerate(lines):
+            if ln.strip() == "```":
+                lines = lines[:i]
+                break
+        text = "\n".join(lines).strip()
+    return text
+
+
 def _analyze_prompt(code: str, line: int) -> str:
     """把全文(带行号)拼给 AI,并标注当前编辑行,便于定位跨行问题。"""
     out = []
@@ -796,7 +813,7 @@ def add_comments(body: CodeInput, api_key: str = Depends(_api_key)):
         raise _http_ai_unavailable()
     try:
         result = ai.chat(prompts.COMMENT_SYSTEM, code, temperature=0.2, max_tokens=2000, api_key=api_key)
-        return CodeResult(code=result.strip())
+        return CodeResult(code=_clean_code(result))
     except Exception as e:  # noqa: BLE001
         logger.warning("生成注释失败:%s", e)
         return CodeResult(code=f"# AI 调用失败:{e}")
@@ -828,7 +845,7 @@ def fix_code(body: CodeInput, api_key: str = Depends(_api_key)):
         raise _http_ai_unavailable()
     try:
         result = ai.chat(prompts.FIX_SYSTEM, code, temperature=0.2, max_tokens=2000, api_key=api_key)
-        return CodeResult(code=result.strip())
+        return CodeResult(code=_clean_code(result))
     except Exception as e:  # noqa: BLE001
         logger.warning("自动修复失败:%s", e)
         return CodeResult(code=f"# AI 调用失败:{e}")
