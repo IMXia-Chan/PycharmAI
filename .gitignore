@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# 本地数据与密钥
+*.db
+.env
+backend/.env
+server/.env
+
+# 日志(可能残留 API key 片段,勿上传)
+*.log
+
+# IDE / 构建产物
+.idea/
+build/
+out/
+.gradle/
+.intellijPlatform/
+plugin/build/
+plugin/.gradle/
+
+# OS
+Thumbs.db
+.DS_Store
