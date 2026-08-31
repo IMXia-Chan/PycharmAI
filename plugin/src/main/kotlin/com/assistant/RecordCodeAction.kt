@@ -29,17 +29,49 @@ class RecordCodeAction : AnAction() {
 
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "记录代码…", false) {
             override fun run(indicator: ProgressIndicator) {
+                var kbError: String? = null
                 try {
                     LocalLibraryStore.addRecord("record", title, code, "", filename, line, "nonstandard", "warning")
-                    ApplicationManager.getApplication().invokeLater {
-                        Messages.showInfoMessage(project, "已保存到本地文件库。", "记录错误代码")
+                    // 同时写入知识库个人库(后端在线才成功);失败不阻断本地保存
+                    try {
+                        BackendClient.addKbPrivate(title, code, filename, languageFor(filename))
+                    } catch (ex: Exception) {
+                        kbError = ex.message
                     }
                 } catch (ex: Exception) {
                     ApplicationManager.getApplication().invokeLater {
                         Messages.showErrorDialog(project, ex.message ?: "记录失败", "错误")
                     }
+                    return
+                }
+                ApplicationManager.getApplication().invokeLater {
+                    if (kbError != null) {
+                        Messages.showWarningDialog(
+                            project,
+                            "已保存到本地文件库,但写入个人库失败:$kbError\n(请确认后端已启动)",
+                            "记录错误代码",
+                        )
+                    } else {
+                        Messages.showInfoMessage(project, "已保存到本地文件库和个人库。", "记录错误代码")
+                    }
                 }
             }
         })
+    }
+
+    private fun languageFor(filename: String): String {
+        val ext = filename.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "java" -> "Java"
+            "js" -> "JavaScript"
+            "ts" -> "TypeScript"
+            "kt" -> "Kotlin"
+            "go" -> "Go"
+            "rs" -> "Rust"
+            "c", "h" -> "C"
+            "cpp", "cc", "hpp" -> "C++"
+            "cs" -> "C#"
+            else -> "Python"
+        }
     }
 }

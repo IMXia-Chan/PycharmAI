@@ -143,3 +143,55 @@ class Library(BaseModel):
     name: str = ""
     created_at: str = ""
     items: list[LibraryItem] = Field(default_factory=list)
+
+
+# ---------- 知识库(ErrorKnowledgeBase) ----------
+
+class KbPublicOut(BaseModel):
+    """公共库记录(只读,从 GitHub 爬取)。"""
+    error_type: str = ""
+    error_message: str = ""
+    language: str = ""
+    solution: str = ""
+    tags: list[str] = Field(default_factory=list)
+    source: str = ""
+
+
+class KbPrivateIn(BaseModel):
+    """个人库新增/修改请求体。"""
+    error_type: str = ""
+    error_message: str = ""
+    language: str = "Python"
+    solution: str = ""
+    code_context: str = ""
+    file_path: str = ""
+    solution_verified: bool = False
+
+
+class KbPrivateOut(BaseModel):
+    """个人库记录(响应)。"""
+    id: str = ""
+    error_type: str = ""
+    error_message: str = ""
+    language: str = ""
+    solution: str = ""
+    code_context: str = ""
+    file_path: str = ""
+    solution_verified: bool = False
+    timestamp: str = ""
+    is_shared: bool = False
+    shared_at: Optional[str] = None
+
+
+class KbSearchHitPublic(BaseModel):
+    """公共库搜索命中:相关度分数 + 命中字段高亮 + 记录本体。"""
+    score: float = 0.0
+    highlights: dict[str, str] = Field(default_factory=dict)
+    record: KbPublicOut = Field(default_factory=KbPublicOut)
+
+
+class KbSearchHitPrivate(BaseModel):
+    """个人库搜索命中:相关度分数 + 命中字段高亮 + 记录本体。"""
+    score: float = 0.0
+    highlights: dict[str, str] = Field(default_factory=dict)
+    record: KbPrivateOut = Field(default_factory=KbPrivateOut)

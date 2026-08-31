@@ -5,6 +5,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.net.URI
+import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -53,6 +54,20 @@ data class Snippet(
 data class VerifyResult(val ok: Boolean, val error: String)
 
 data class VersionInfo(val version: String, val message: String, val url: String)
+
+/** 知识库搜索结果(公共库与个人库字段摊平,缺失留空)。 */
+data class KbHit(
+    val score: Double,
+    val errorType: String,
+    val errorMessage: String,
+    val language: String,
+    val solution: String,
+    val tags: String,
+    val source: String,
+    val codeContext: String,
+    val filePath: String,
+    val isPrivate: Boolean,
+)
 
 object BackendClient {
     private val gson = Gson()
@@ -266,6 +281,34 @@ object BackendClient {
         post("/api/record", payload)
     }
 
+    /** 把错误代码写入知识库个人库(/api/kb/private)。 */
+    fun addKbPrivate(errorType: String, codeContext: String, filePath: String, language: String = "Python") {
+        val payload = JsonObject()
+        payload.addProperty("error_type", errorType)
+        payload.addProperty("error_message", "")
+        payload.addProperty("language", language)
+        payload.addProperty("solution", "")
+        payload.addProperty("code_context", codeContext)
+        payload.addProperty("file_path", filePath)
+        payload.addProperty("solution_verified", false)
+        post("/api/kb/private", payload)
+    }
+
+    /** 搜索本地知识库(公共 + 个人),返回 (公共命中, 个人命中)。 */
+    fun searchKbAll(q: String): Pair<List<KbHit>, List<KbHit>> {
+        val path = "/api/kb/search?q=" + URLEncoder.encode(q, StandardCharsets.UTF_8).replace("+", "%20")
+        val root = JsonParser.parseString(get(path)).asJsonObject
+        val pub = root.getAsJsonArray("public")?.map { it.asJsonObject.toKbHit(false) } ?: emptyList()
+        val prv = root.getAsJsonArray("private")?.map { it.asJsonObject.toKbHit(true) } ?: emptyList()
+        return pub to prv
+    }
+
+    /** 强制后端重载知识库索引(灌库后调用,无需重启后端)。返回 (公共库条数, 个人库条数)。 */
+    fun reloadKb(): Pair<Int, Int> {
+        val root = JsonParser.parseString(post("/api/kb/reload", JsonObject())).asJsonObject
+        return root.int("public") to root.int("private")
+    }
+
     /** 候选库一键上传:把选中的本地记录批量发到网页端记录库(保留 filename,网页按文件名分组)。 */
     fun uploadRecords(records: List<Record>) {
         val payload = JsonObject()
@@ -291,6 +334,28 @@ object BackendClient {
     private fun JsonObject.int(key: String): Int =
         if (has(key) && !get(key).isJsonNull) get(key).asInt else 0
 
+    private fun JsonObject.dbl(key: String): Double =
+        if (has(key) && !get(key).isJsonNull) get(key).asDouble else 0.0
+
     private fun JsonObject.bool(key: String): Boolean =
         has(key) && !get(key).isJsonNull && get(key).asBoolean
+
+    /** 把 /api/kb/search 返回的单个命中解析成 KbHit(record 字段 + 外层 score)。 */
+    private fun JsonObject.toKbHit(isPrivate: Boolean): KbHit {
+        val rec = getAsJsonObject("record") ?: JsonObject()
+        val tagsArr = rec.getAsJsonArray("tags")
+        val tags = if (tagsArr != null) tagsArr.joinToString(", ") { it.asString } else ""
+        return KbHit(
+            score = dbl("score"),
+            errorType = rec.str("error_type"),
+            errorMessage = rec.str("error_message"),
+            language = rec.str("language"),
+            solution = rec.str("solution"),
+            tags = tags,
+            source = rec.str("source"),
+            codeContext = rec.str("code_context"),
+            filePath = rec.str("file_path"),
+            isPrivate = isPrivate,
+        )
+    }
 }

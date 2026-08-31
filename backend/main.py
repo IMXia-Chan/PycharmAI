@@ -21,7 +21,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pathlib import Path
 
-from . import ai, config, pdf_export, prompts, rules
+from . import ai, config, kb, pdf_export, prompts, rag, rules
 from .models import (
     AnalyzeResult,
     ChatIn,
@@ -50,6 +50,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("backend")
 
 app = FastAPI(title="Python 代码助手后端", version="1.0.0")
+
+app.include_router(kb.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -778,7 +780,9 @@ def chat(body: ChatIn, api_key: str = Depends(_api_key)):
     if not ai.is_available(api_key):
         raise _http_ai_unavailable()
     try:
-        reply = ai.chat(prompts.CHAT_SYSTEM, question, temperature=0.6, max_tokens=2000, api_key=api_key)
+        ctx = rag.build_kb_context(question)
+        system = prompts.CHAT_SYSTEM + (f"\n\n{ctx}" if ctx else "")
+        reply = ai.chat(system, question, temperature=0.6, max_tokens=2000, api_key=api_key)
         return ChatResult(reply=reply.strip())
     except Exception as e:  # noqa: BLE001
         logger.warning("问答失败:%s", e)
@@ -828,7 +832,9 @@ def explain_error(body: TextIn, api_key: str = Depends(_api_key)):
     if not ai.is_available(api_key):
         raise _http_ai_unavailable()
     try:
-        text = ai.chat(prompts.ERROR_SYSTEM, error, temperature=0.3, max_tokens=1500, api_key=api_key)
+        ctx = rag.build_kb_context(error)
+        system = prompts.ERROR_SYSTEM + (f"\n\n{ctx}" if ctx else "")
+        text = ai.chat(system, error, temperature=0.3, max_tokens=1500, api_key=api_key)
         return TextResult(text=text.strip())
     except Exception as e:  # noqa: BLE001
         logger.warning("报错解释失败:%s", e)
@@ -844,7 +850,9 @@ def fix_code(body: CodeInput, api_key: str = Depends(_api_key)):
     if not ai.is_available(api_key):
         raise _http_ai_unavailable()
     try:
-        result = ai.chat(prompts.FIX_SYSTEM, code, temperature=0.2, max_tokens=2000, api_key=api_key)
+        ctx = rag.build_kb_context(code)
+        system = prompts.FIX_SYSTEM + (f"\n\n{ctx}" if ctx else "")
+        result = ai.chat(system, code, temperature=0.2, max_tokens=2000, api_key=api_key)
         return CodeResult(code=_clean_code(result))
     except Exception as e:  # noqa: BLE001
         logger.warning("自动修复失败:%s", e)

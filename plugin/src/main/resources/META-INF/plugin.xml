@@ -1,7 +1,7 @@
 <idea-plugin>
     <id>com.assistant.python-assistant</id>
     <name>Python 代码助手</name>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <vendor>assistant</vendor>
 
     <description><![CDATA[
@@ -79,6 +79,16 @@
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
             <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt K"/>
+        </action>
+        <action id="Assistant.KbSearch" class="com.assistant.KbSearchAction"
+                text="知识库搜索…"
+                description="搜索本地知识库(公共/个人)的报错解决方案">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+        <action id="Assistant.KbReload" class="com.assistant.KbReloadAction"
+                text="重载知识库索引"
+                description="灌库后点一下,让后端立刻读到新数据(无需重启)">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
     </actions>
 </idea-plugin>

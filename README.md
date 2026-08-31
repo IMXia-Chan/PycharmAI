@@ -5,6 +5,7 @@
 - **Kotlin 插件**（`plugin/`）：IDE 内的一切交互 —— 代码旁内联提示、快捷键、文件库窗口（记录 + 代码片段）。
 - **Python 后端**（`backend/`）：AI 大脑 —— 调用 DeepSeek 做错误检测 / 中文搜函数 / 函数对比 / AI 问答 / 代码解释 / 自动修复等；并有内置规则兜底，无 API key 也能用基础提示。
 - **云端服务**（`server/`，可选）：可选的多用户文件库 / 版本更新提示。**默认不使用**，数据存在本机。
+- **本地报错知识库**（`error_knowledge_base/`）：纯本地双库（公共只读 + 个人增删改查）+ 自研 BM25 检索，配合 RAG 让 AI 回答报错问题时有真实案例可查。
 
 ## 功能一览
 
@@ -18,6 +19,8 @@
 | 报错解释 | `Ctrl+Alt+X` | 粘贴运行时报错，AI 解释原因与改法 |
 | 记录错误代码 | `Ctrl+Alt+N` | 把当前选中（或整个文件）记录到本地文件库 |
 | 保存代码片段 | `Ctrl+Alt+K` | 把选中代码存进「文件库」，和错误记录一起上传网页 |
+| 知识库搜索 | — | 搜本地知识库（公共/个人）的报错解决方案 |
+| 重载知识库索引 | — | 灌库后点一下，让后端读到新数据（免重启） |
 
 > 菜单入口在 PyCharm 的 **Tools** 菜单里；右键菜单也挂了部分项。
 
@@ -47,6 +50,35 @@
 
 生成的笔记可在文件库内「导出 PDF / Markdown」。
 
+## 本地报错知识库（ErrorKnowledgeBase）
+
+一个**纯本地、双库**的报错知识库，让 AI 回答报错问题时「有据可依」：
+
+- **公共库**（只读）：从 Stack Overflow 爬取的报错 + 真实解决方案（CC BY-SA 4.0 署名）。
+- **个人库**（增删改查）：你自己的报错记录。
+- **检索内核**：自研 BM25 + 结巴分词 + 字段加权 + 布尔查询 + 高亮，索引 pickle 落盘、可重建。
+- **RAG 增强**：`/api/chat`、`/api/explain-error`、`/api/fix` 三个端点会自动先检索知识库，把命中案例喂给 DeepSeek。
+
+### 用法
+
+| 入口 | 怎么用 |
+|---|---|
+| 主动搜索 | Tools → **知识库搜索…**，输入 `TypeError` 等关键词 |
+| 重载索引 | Tools → **重载知识库索引**（灌库后点一下，免重启后端） |
+| RAG 增强 | **报错解释** / **自动修复** 时自动携带知识库上下文 |
+
+### 灌库（一次性，可选）
+
+官方 ClickHouse 托管的 Stack Overflow Posts Parquet（按年、免账号、CC BY-SA 4.0）：
+
+```bash
+cd error_knowledge_base
+pip install -r requirements.txt
+python -m crawler.fill_public --year 2023 --limit 200000   # 下载→清洗→灌库→重建索引→搜索自检
+```
+
+> 数据与索引都在 `error_knowledge_base/data/`，已被 `.gitignore` 忽略、不入库。公共库只读、个人库可增删改查、纯本地无网络。
+
 ## 目录结构
 
 ```
@@ -60,6 +92,11 @@ ai-code-assistant/
 │   ├── pdf_export.py   # PDF / Markdown 导出
 │   ├── storage/        # 存储抽象（本地 SQLite / 远程云端）
 │   └── web/            # 网页工作台（AI 问答、笔记、文件库、导出）
+├── error_knowledge_base/  # 本地报错知识库（双库 + 自研检索内核）
+│   ├── core/              # 数据模型 / 存储 / 分词 / BM25 检索
+│   ├── crawler/           # Stack Exchange 爬虫 + 一键灌库
+│   ├── data/              # 本地数据（.gitignore 忽略，不入库）
+│   └── main.py            # 演示入口
 ├── server/             # 可选云端服务（多用户文件库 / 版本）
 ├── plugin/             # IntelliJ/PyCharm 插件（Kotlin）
 └── .env.example        # 环境变量模板
@@ -69,6 +106,7 @@ ai-code-assistant/
 
 - **Python 3.10+**（3.14 可用）
 - 后端依赖：`pip install -r backend/requirements.txt`
+- 知识库依赖（仅灌库/爬虫需要）：`pip install -r error_knowledge_base/requirements.txt`
 - 插件构建：IntelliJ IDEA + **Kotlin 2.3.20 + Gradle 9.6**（wrapper 已带）+ IntelliJ Platform Gradle 插件 2.18.1
 
 ## 快速开始（先本地跑通）
@@ -100,7 +138,7 @@ python -m backend.main        # 或 uvicorn backend.main:app --host 127.0.0.1 --
 
 1. 用 IntelliJ IDEA 打开 `plugin/`（作为 Gradle 项目）。
 2. 运行 `buildPlugin` 任务（Gradle 面板 → Tasks → build → buildPlugin）。
-3. 产物在 `plugin\build\distributions\python-assistant-1.0.0.zip`。
+3. 产物在 `plugin\build\distributions\python-assistant-1.1.0.zip`。
 4. PyCharm → **Settings → Plugins → ⚙ → Install Plugin from Disk…**，选该 zip 重启。
 
 > 构建需要 `JAVA_HOME` 指向 JDK（IDEA 自带的 `jbr` 目录即可）。
