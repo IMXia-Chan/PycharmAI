@@ -33,3 +33,7 @@ plugin/.gradle/
 # OS
 Thumbs.db
 .DS_Store
+
+# 内部技术文档(含端点/令牌门禁等攻击面细节,不对外公开)
+docs/make_doc_pdf.py
+docs/Python代码助手-全链路说明.pdf
