@@ -124,4 +124,10 @@ def reload_index() -> dict:
     priv_db = PrivateDatabase()
     reload_public_index(pub_db)
     reload_private_index(priv_db)
+    # 向量索引(中文检索语义兜底)也一并重建;fastembed 未安装时跳过,不影响主流程
+    try:
+        from core.vector import reload_public_vector
+        reload_public_vector(pub_db)
+    except ImportError:
+        pass
     return {"ok": True, "public": pub_db.count(), "private": priv_db.count()}

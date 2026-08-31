@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+import ast
 import base64
 import json
 import logging
@@ -124,6 +125,31 @@ def _clean_code(text: str) -> str:
                 break
         text = "\n".join(lines).strip()
     return text
+
+
+def _fix_retry_if_invalid(fixed: str, original: str, system: str, api_key: str) -> str:
+    """修复结果做语法检查;语法错则把错误信息喂回 AI 重试一次,仍错则原样返回。
+
+    用户选中的代码可能本身就不是完整语句,ast.parse 对这类片段会一直报 SyntaxError;
+    因此只在「能解析」时放行,解析失败最多重试一次,不无限循环。
+    """
+    if not fixed.strip():
+        return fixed
+    try:
+        ast.parse(fixed)
+        return fixed
+    except SyntaxError as e:  # noqa: BLE001
+        logger.warning("修复结果语法错误,重试一次:%s", e)
+        try:
+            retry_user = (
+                f"你上一次给出的修复结果有语法错误(第 {e.lineno} 行附近:{e.msg}),"
+                f"请修正后重新输出完整的正确代码。\n\n原始代码:\n{original}"
+            )
+            retried = ai.chat(system, retry_user, temperature=0.0, max_tokens=2000, api_key=api_key)
+            return _clean_code(retried)
+        except Exception as e2:  # noqa: BLE001
+            logger.warning("语法修复重试失败:%s", e2)
+            return fixed
 
 
 def _analyze_prompt(code: str, line: int) -> str:
@@ -850,10 +876,25 @@ def fix_code(body: CodeInput, api_key: str = Depends(_api_key)):
     if not ai.is_available(api_key):
         raise _http_ai_unavailable()
     try:
-        ctx = rag.build_kb_context(code)
+        # B: 从代码提取检索强信号(异常名/import),零成本
+        signals = rag.extract_search_signals(code)
+        # A: AI 先诊断核心问题,用精准描述检索知识库(失败则退回信号)
+        try:
+            diagnosis = ai.chat(
+                prompts.DIAGNOSE_SYSTEM, code,
+                temperature=0.2, max_tokens=120, api_key=api_key,
+            ).strip()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("修复前诊断失败,退化为信号检索:%s", e)
+            diagnosis = ""
+        query = " ".join(x for x in (diagnosis, signals) if x) or code
+        ctx = rag.build_kb_context(query)
         system = prompts.FIX_SYSTEM + (f"\n\n{ctx}" if ctx else "")
         result = ai.chat(system, code, temperature=0.2, max_tokens=2000, api_key=api_key)
-        return CodeResult(code=_clean_code(result))
+        fixed = _clean_code(result)
+        # D: 语法验证兜底,语法错自动重试一次
+        fixed = _fix_retry_if_invalid(fixed, code, system, api_key)
+        return CodeResult(code=fixed)
     except Exception as e:  # noqa: BLE001
         logger.warning("自动修复失败:%s", e)
         return CodeResult(code=f"# AI 调用失败:{e}")

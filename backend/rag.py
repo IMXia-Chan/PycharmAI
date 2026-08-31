@@ -94,3 +94,35 @@ def build_kb_context(query: str, top_k: int = _DEFAULT_TOP_K) -> str:
     # 把提示头/尾插到案例列表前后
     body = "\n\n".join(_format_hit(i, h) for i, h in enumerate(top, 1))
     return lines[0] + "\n" + lines[1] + "\n\n" + body + "\n\n" + lines[2]
+
+
+# ---------- 从代码提取检索信号(自动修复 /api/fix 用) ----------
+
+# 异常类名:TypeError / ValueError / KeyError / ModuleNotFoundError ...
+_ERROR_NAME_RE = re.compile(r"\b[A-Z][A-Za-z]*(?:Error|Exception|Warning|Fault)\b")
+
+# import 语句:import requests / import numpy as np / from os import path
+_IMPORT_RE = re.compile(
+    r"^\s*(?:from\s+([A-Za-z_][A-Za-z0-9_.]*)|import\s+([A-Za-z_][A-Za-z0-9_.]*))",
+    re.MULTILINE,
+)
+
+
+def extract_search_signals(code: str) -> str:
+    """从代码里提取检索强信号(异常名 + import 的模块名),拼成检索词。
+
+    用于自动修复(/api/fix):拿整段代码去搜知识库时信号会被变量名/逻辑稀释,
+    先抠出 TypeError、requests 这类强关键词再搜,命中更准,且不额外调 AI。
+    返回空格分隔的信号串;没有信号则返回空串。
+    """
+    if not (code or "").strip():
+        return ""
+    errors = _ERROR_NAME_RE.findall(code)
+    imports = [m for pair in _IMPORT_RE.findall(code) for m in pair if m]
+    signals: list[str] = []
+    seen: set[str] = set()
+    for s in [*errors, *imports]:
+        if s not in seen:
+            signals.append(s)
+            seen.add(s)
+    return " ".join(signals)

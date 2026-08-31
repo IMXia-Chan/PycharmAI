@@ -11,12 +11,8 @@ venv/
 backend/.env
 server/.env
 
-# 知识库检索索引(可重建的衍生数据,不入库)
-error_knowledge_base/data/index/
-
-# 知识库爬虫下载的原始数据(7z/XML)与本地数据(公共/个人库 JSON,爬虫可重建)
-error_knowledge_base/data/raw/
-error_knowledge_base/data/*.json
+# 知识库本地数据(索引/爬虫原始/公共个人库 JSON/按语言归档)全部可重建,不入库
+error_knowledge_base/data/
 
 # 日志(可能残留 API key 片段,勿上传)
 *.log

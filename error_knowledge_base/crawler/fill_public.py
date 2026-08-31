@@ -39,6 +39,18 @@ def rebuild_index() -> None:
     print("[索引] 重建完成")
 
 
+def rebuild_vector() -> None:
+    """从 public_db.json 重建向量索引(若已安装 fastembed,否则跳过)。"""
+    db = PublicDatabase()
+    try:
+        from core.vector import reload_public_vector
+    except ImportError:
+        print("\n[向量] 未安装 fastembed,跳过(中文检索仍走 BM25;可 pip install fastembed 后跑 python -m core.vector)")
+        return
+    reload_public_vector(db)
+    print("[向量] 重建完成")
+
+
 def verify_search() -> int:
     """搜索自检:对一组常见异常词搜公共库,返回未命中的词数。"""
     db = PublicDatabase()
@@ -71,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # 3: 重建索引(确保一致)
     rebuild_index()
+
+    # 3.5: 重建向量索引(中文检索语义兜底,需 fastembed)
+    rebuild_vector()
 
     # 4: 搜索校验
     miss = verify_search()
